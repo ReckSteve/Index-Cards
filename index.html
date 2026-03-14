@@ -8,8 +8,9 @@
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
         body { background-color: #2f3640; font-family: 'Gochi Hand', cursive; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; touch-action: none; }
-        #controls { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        #controls { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
         button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background 0.3s; }
+        #sync-info { color: #bdc3c7; font-size: 0.8rem; margin-left: 5px; font-family: sans-serif; }
         .card-container { width: 95vw; max-width: 800px; height: 75vh; background: var(--card-bg); box-shadow: 15px 15px 0px rgba(0,0,0,0.3); position: relative; overflow: hidden; background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); background-size: 100% 2.2rem, 100% 100%; }
         .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
         .task-group { position: absolute; cursor: move; min-width: 160px; padding: 5px; }
@@ -20,8 +21,6 @@
         .btn-add-sub { font-size: 0.8rem; width: 18px; height: 18px; border: 1px solid #ccc; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .delete-btn { color: #e74c3c; font-size: 0.8rem; margin-left: 5px; opacity: 0; }
         .task-group:hover .delete-btn { opacity: 1; }
-        
-        /* Sync Colors */
         .sync-green { background: #2ecc71 !important; color: white; }
         .sync-orange { background: #e67e22 !important; color: white; }
         .sync-blue { background: #3498db !important; color: white; }
@@ -33,7 +32,10 @@
     <div id="controls">
         <select id="cardSelector" onchange="switchCard(this.value)"></select>
         <button onclick="addNewCard()">➕ New</button>
-        <button id="syncBtn" class="sync-green" onclick="syncCloud()">☁️ Synced</button>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <button id="syncBtn" class="sync-green" onclick="syncCloud()">☁️ Synced</button>
+            <span id="sync-info">Never synced</span>
+        </div>
         <button onclick="clearDone()">🧹 Clear Done</button>
         <button onclick="deleteCurrentCard()" style="color: red;">🗑️</button>
     </div>
@@ -48,18 +50,16 @@
 
         let cards = JSON.parse(localStorage.getItem('cardStack')) || [{ id: Date.now(), title: "Daily List", tasks: [] }];
         let currentCardId = cards[0].id;
-        let hasUnsavedChanges = false;
+        let lastSyncTime = localStorage.getItem('lastSyncTime') || 'Never';
 
         function setDirty(isDirty) {
-            hasUnsavedChanges = isDirty;
             const btn = document.getElementById('syncBtn');
-            if (isDirty) {
-                btn.className = 'sync-orange';
-                btn.innerText = '☁️ Unsaved';
-            } else {
-                btn.className = 'sync-green';
-                btn.innerText = '☁️ Synced';
-            }
+            btn.className = isDirty ? 'sync-orange' : 'sync-green';
+            btn.innerText = isDirty ? '☁️ Unsaved' : '☁️ Synced';
+        }
+
+        function updateSyncText() {
+            document.getElementById('sync-info').innerText = 'Last: ' + lastSyncTime;
         }
 
         function save() { 
@@ -69,25 +69,20 @@
 
         async function syncCloud() {
             const btn = document.getElementById('syncBtn');
-            const choice = prompt("Cloud Sync:\nType '1' to PULL (Get latest from other device)\nType '2' to PUSH (Save your current screen to cloud)");
-            
+            const choice = prompt("Cloud Sync:\n'1' = PULL (Get from cloud)\n'2' = PUSH (Save to cloud)");
             if (choice !== '1' && choice !== '2') return;
 
-            btn.innerText = "⏳ Working...";
+            btn.innerText = "⏳ Wait...";
             btn.className = 'sync-blue syncing';
 
             try {
                 if (choice === '1') {
-                    const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-                        headers: { 'X-Master-Key': API_KEY }
-                    });
-                    const remoteData = await response.json();
+                    const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { 'X-Master-Key': API_KEY } });
+                    const remoteData = await res.json();
                     if (remoteData.record && remoteData.record.cards) {
                         cards = remoteData.record.cards;
                         localStorage.setItem('cardStack', JSON.stringify(cards));
                         render();
-                        setDirty(false);
-                        alert("Data pulled from cloud!");
                     }
                 } else {
                     await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
@@ -95,9 +90,11 @@
                         headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
                         body: JSON.stringify({ cards: cards })
                     });
-                    setDirty(false);
-                    alert("Data pushed to cloud!");
                 }
+                lastSyncTime = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                localStorage.setItem('lastSyncTime', lastSyncTime);
+                updateSyncText();
+                setDirty(false);
             } catch (err) {
                 alert("Sync failed.");
                 console.error(err);
@@ -129,11 +126,13 @@
                 };
                 container.appendChild(div);
             });
+            updateSyncText();
         }
 
         function addNewCard() { const name = prompt("Card Name:"); if(!name) return; const newId = Date.now(); cards.push({ id: newId, title: name, tasks: [] }); currentCardId = newId; save(); render(); }
         function switchCard(id) { currentCardId = id; render(); }
-        function saveTitle() { const c = cards.find(c => c.id == currentCardId); c.title = document.getElementById('header-title').value; save(); render(); }
+        function saveTitle() { const c = cards.find(c => c.id == currentCardId); if(c) { c.title = document.getElementById('header-title').value; save(); updateSelectorText(); } }
+        function updateSelectorText() { const selector = document.getElementById('cardSelector'); const c = cards.find(c => c.id == currentCardId); if(selector && c) selector.options[selector.selectedIndex].text = c.title; }
         function createTask(e) { if(e.target !== document.getElementById('card')) return; const text = prompt("Task Name:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks.push({ text, done: false, x: e.offsetX, y: e.offsetY, subs: [] }); save(); render(); }
         function addSub(index) { const text = prompt("Sub-task:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks[index].subs.push({ text, done: false }); save(); render(); }
         function toggleTask(idx) { const t = cards.find(c => c.id == currentCardId).tasks[idx]; t.done = !t.done; save(); render(); }
