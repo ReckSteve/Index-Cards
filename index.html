@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="apple-touch-icon" href="https://i.ibb.co/wSp0K7B/icon-app.png">
-    <title>Cloud Index Cards</title>
+    <title>Index Cards</title>
     <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
@@ -14,11 +14,9 @@
             font-family: 'Gochi Hand', cursive; 
             margin: 0; 
             padding: 0; 
-            width: 100vw;
-            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden; 
+            height: 100vh;
         }
 
         #controls { 
@@ -30,18 +28,16 @@
             align-items: center; 
             background: #2f3640;
             z-index: 100;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; }
         .zoom-controls { display: flex; align-items: center; gap: 5px; color: white; font-size: 0.8rem; font-family: sans-serif; }
         #sync-info { color: #bdc3c7; font-size: 0.8rem; margin-top: 2px; font-family: sans-serif; }
         
         .card-viewport {
             flex: 1;
             overflow: auto; 
-            padding: 40px;
-            display: block; 
+            padding: 20px;
             -webkit-overflow-scrolling: touch;
         }
 
@@ -54,12 +50,11 @@
             background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); 
             background-size: 100% 2.2rem, 100% 100%; 
             transform-origin: top left;
-            margin-bottom: 100px; 
         }
 
         .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
         .task-group { position: absolute; min-width: 180px; padding: 5px; display: flex; flex-direction: column; user-select: none; }
-        .main-task { font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; gap: 5px; line-height: 1.2; }
+        .main-task { font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; gap: 5px; }
         .handle { cursor: move; color: #ccc; padding: 10px; font-size: 1.4rem; touch-action: none; }
         .sub-task-list { margin-left: 35px; list-style: none; padding: 0; }
         .sub-task { font-size: 1.3rem; margin-top: 4px; cursor: pointer; }
@@ -69,7 +64,6 @@
         .sync-green { background: #2ecc71 !important; color: white; }
         .sync-orange { background: #e67e22 !important; color: white; }
         .sync-blue { background: #3498db !important; color: white; }
-        .syncing { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -108,14 +102,14 @@
             currentZoom = val;
             const card = document.getElementById('card');
             card.style.transform = `scale(${val})`;
-            card.parentElement.style.minHeight = (500 * val + 100) + 'px';
-            card.parentElement.style.minWidth = (800 * val + 100) + 'px';
+            card.parentElement.style.minHeight = (500 * val + 50) + 'px';
+            card.parentElement.style.minWidth = (800 * val + 50) + 'px';
         }
 
         function autoScale() {
             if (window.innerWidth < 800) {
-                const ratio = (window.innerWidth - 80) / 800;
-                applyZoom(Math.max(ratio, 0.5));
+                const ratio = (window.innerWidth - 40) / 800;
+                applyZoom(Math.max(ratio, 0.45));
             } else {
                 applyZoom(1);
             }
@@ -134,7 +128,7 @@
             const btn = document.getElementById('syncBtn');
             const choice = prompt("Cloud Sync:\n'1' = PULL (Get from cloud)\n'2' = PUSH (Save to cloud)");
             if (choice !== '1' && choice !== '2') return;
-            btn.innerText = "⏳ Wait..."; btn.className = 'sync-blue syncing';
+            btn.innerText = "⏳ Wait..."; btn.className = 'sync-blue';
             try {
                 if (choice === '1') {
                     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { 'X-Master-Key': API_KEY } });
@@ -180,7 +174,6 @@
                     e.stopPropagation();
                     let clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                     let clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                    
                     const rect = div.getBoundingClientRect();
                     let offsetLeft = clientX - rect.left;
                     let offsetTop = clientY - rect.top;
@@ -188,16 +181,12 @@
                     const move = (e) => {
                         let moveX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                         let moveY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                        
                         const containerRect = container.getBoundingClientRect();
-                        
                         let newX = (moveX - containerRect.left - offsetLeft) / currentZoom;
                         let newY = (moveY - containerRect.top - offsetTop) / currentZoom;
-                        
                         div.style.left = newX + 'px';
                         div.style.top = newY + 'px';
-                        group.x = newX;
-                        group.y = newY;
+                        group.x = newX; group.y = newY;
                     };
 
                     const stop = () => {
