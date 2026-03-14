@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="apple-touch-icon" href="https://i.ibb.co/wSp0K7B/icon-app.png">
     <title>Cloud Index Cards</title>
     <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
         
-        /* The "Desk" area - allows scrolling */
         body { 
             background-color: #2f3640; 
             font-family: 'Gochi Hand', cursive; 
@@ -18,7 +18,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Prevent the whole body from bouncing */
+            overflow: hidden; 
         }
 
         #controls { 
@@ -37,12 +37,11 @@
         .zoom-controls { display: flex; align-items: center; gap: 5px; color: white; font-size: 0.8rem; font-family: sans-serif; }
         #sync-info { color: #bdc3c7; font-size: 0.8rem; margin-top: 2px; font-family: sans-serif; }
         
-        /* The scrollable viewport for the card */
         .card-viewport {
             flex: 1;
-            overflow: auto; /* This allows you to swipe around the card */
+            overflow: auto; 
             padding: 40px;
-            display: block; /* Allows natural scrolling bounds */
+            display: block; 
             -webkit-overflow-scrolling: touch;
         }
 
@@ -55,7 +54,7 @@
             background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); 
             background-size: 100% 2.2rem, 100% 100%; 
             transform-origin: top left;
-            margin-bottom: 100px; /* Extra space at bottom to scroll past */
+            margin-bottom: 100px; 
         }
 
         .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
@@ -109,7 +108,6 @@
             currentZoom = val;
             const card = document.getElementById('card');
             card.style.transform = `scale(${val})`;
-            // Adjust container height to match scaled card so scrolling works
             card.parentElement.style.minHeight = (500 * val + 100) + 'px';
             card.parentElement.style.minWidth = (800 * val + 100) + 'px';
         }
