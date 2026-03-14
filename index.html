@@ -7,30 +7,43 @@
     <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
+        
+        /* The "Desk" area - allows scrolling */
         body { 
             background-color: #2f3640; 
             font-family: 'Gochi Hand', cursive; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
             margin: 0; 
-            padding: 10px; 
-            overflow: hidden; 
-            position: fixed; 
-            width: 100%;
-            height: 100%;
+            padding: 0; 
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent the whole body from bouncing */
         }
-        #controls { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; z-index: 100; }
+
+        #controls { 
+            padding: 10px;
+            display: flex; 
+            gap: 8px; 
+            flex-wrap: wrap; 
+            justify-content: center; 
+            align-items: center; 
+            background: #2f3640;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
         button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .zoom-controls { display: flex; align-items: center; gap: 5px; color: white; font-size: 0.8rem; font-family: sans-serif; }
         #sync-info { color: #bdc3c7; font-size: 0.8rem; margin-top: 2px; font-family: sans-serif; }
         
-        /* The Card Frame */
-        .card-wrapper {
-            perspective: 1000px;
-            display: flex;
-            justify-content: center;
-            width: 100%;
+        /* The scrollable viewport for the card */
+        .card-viewport {
+            flex: 1;
+            overflow: auto; /* This allows you to swipe around the card */
+            padding: 40px;
+            display: block; /* Allows natural scrolling bounds */
+            -webkit-overflow-scrolling: touch;
         }
 
         .card-container { 
@@ -39,17 +52,16 @@
             background: var(--card-bg); 
             box-shadow: 15px 15px 0px rgba(0,0,0,0.3); 
             position: relative; 
-            overflow: hidden; 
             background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); 
             background-size: 100% 2.2rem, 100% 100%; 
-            touch-action: none;
-            transform-origin: top center;
+            transform-origin: top left;
+            margin-bottom: 100px; /* Extra space at bottom to scroll past */
         }
 
         .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
         .task-group { position: absolute; min-width: 180px; padding: 5px; display: flex; flex-direction: column; user-select: none; }
         .main-task { font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; gap: 5px; line-height: 1.2; }
-        .handle { cursor: move; color: #ccc; padding: 0 5px; font-size: 1.4rem; touch-action: none; }
+        .handle { cursor: move; color: #ccc; padding: 10px; font-size: 1.4rem; touch-action: none; }
         .sub-task-list { margin-left: 35px; list-style: none; padding: 0; }
         .sub-task { font-size: 1.3rem; margin-top: 4px; cursor: pointer; }
         .done { text-decoration: line-through; color: #bdc3c7; }
@@ -72,13 +84,13 @@
         </div>
         <div class="zoom-controls">
             <span>Zoom:</span>
-            <input type="range" id="zoomSlider" min="0.3" max="1.5" step="0.05" value="1" oninput="applyZoom(this.value)">
+            <input type="range" id="zoomSlider" min="0.4" max="1.5" step="0.05" value="1" oninput="applyZoom(this.value)">
         </div>
         <button onclick="clearDone()">🧹 Clear Done</button>
         <button onclick="deleteCurrentCard()" style="color: red;">🗑️</button>
     </div>
 
-    <div class="card-wrapper">
+    <div class="card-viewport">
         <div class="card-container" id="card" ondblclick="createTask(event)">
             <input type="text" class="card-header-title" id="header-title" oninput="saveTitle()" placeholder="Card Name...">
         </div>
@@ -95,15 +107,19 @@
 
         function applyZoom(val) {
             currentZoom = val;
-            document.getElementById('card').style.transform = `scale(${val})`;
-            document.getElementById('zoomSlider').value = val;
+            const card = document.getElementById('card');
+            card.style.transform = `scale(${val})`;
+            // Adjust container height to match scaled card so scrolling works
+            card.parentElement.style.minHeight = (500 * val + 100) + 'px';
+            card.parentElement.style.minWidth = (800 * val + 100) + 'px';
         }
 
-        // Auto-scale for mobile on load
         function autoScale() {
             if (window.innerWidth < 800) {
-                const ratio = (window.innerWidth - 20) / 800;
-                applyZoom(ratio);
+                const ratio = (window.innerWidth - 80) / 800;
+                applyZoom(Math.max(ratio, 0.5));
+            } else {
+                applyZoom(1);
             }
         }
 
@@ -163,18 +179,27 @@
 
                 const handle = div.querySelector('.handle');
                 const startDrag = (e) => {
+                    e.stopPropagation();
                     let clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                     let clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                    let startX = clientX - (div.offsetLeft * currentZoom);
-                    let startY = clientY - (div.offsetTop * currentZoom);
+                    
+                    const rect = div.getBoundingClientRect();
+                    let offsetLeft = clientX - rect.left;
+                    let offsetTop = clientY - rect.top;
 
                     const move = (e) => {
                         let moveX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                         let moveY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                        div.style.left = ((moveX - startX) / currentZoom) + 'px';
-                        div.style.top = ((moveY - startY) / currentZoom) + 'px';
-                        group.x = parseInt(div.style.left);
-                        group.y = parseInt(div.style.top);
+                        
+                        const containerRect = container.getBoundingClientRect();
+                        
+                        let newX = (moveX - containerRect.left - offsetLeft) / currentZoom;
+                        let newY = (moveY - containerRect.top - offsetTop) / currentZoom;
+                        
+                        div.style.left = newX + 'px';
+                        div.style.top = newY + 'px';
+                        group.x = newX;
+                        group.y = newY;
                     };
 
                     const stop = () => {
@@ -202,7 +227,12 @@
         function switchCard(id) { currentCardId = id; render(); }
         function saveTitle() { const c = cards.find(c => c.id == currentCardId); if(c) { c.title = document.getElementById('header-title').value; save(); updateSelectorText(); } }
         function updateSelectorText() { const selector = document.getElementById('cardSelector'); const c = cards.find(c => c.id == currentCardId); if(selector && c) selector.options[selector.selectedIndex].text = c.title; }
-        function createTask(e) { if(e.target !== document.getElementById('card')) return; const text = prompt("Task Name:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks.push({ text, done: false, x: e.offsetX / currentZoom, y: e.offsetY / currentZoom, subs: [] }); save(); render(); }
+        function createTask(e) { if(e.target !== document.getElementById('card')) return; const text = prompt("Task Name:"); if(!text) return; 
+            const rect = e.target.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / currentZoom;
+            const y = (e.clientY - rect.top) / currentZoom;
+            cards.find(c => c.id == currentCardId).tasks.push({ text, done: false, x, y, subs: [] }); save(); render(); 
+        }
         function addSub(index) { const text = prompt("Sub-task:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks[index].subs.push({ text, done: false }); save(); render(); }
         function toggleTask(idx) { const t = cards.find(c => c.id == currentCardId).tasks[idx]; t.done = !t.done; save(); render(); }
         function toggleSub(tIdx, sIdx, e) { e.stopPropagation(); const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx]; s.done = !s.done; save(); render(); }
@@ -212,6 +242,7 @@
         function editSub(tIdx, sIdx, e) { e.preventDefault(); const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx]; const n = prompt("Edit:", s.text); if(n) { s.text = n; save(); render(); } }
         
         window.onload = () => { autoScale(); render(); };
+        window.onresize = autoScale;
     </script>
 </body>
 </html>
