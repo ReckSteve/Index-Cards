@@ -2,59 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/wSp0K7B/icon-app.png">
     <link rel="apple-touch-icon" href="https://i.ibb.co/wSp0K7B/icon-app.png">
-    <title>Index Cards</title>
+    <title>My Desk</title>
     <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
-        
-        body { 
-            background-color: #2f3640; 
-            font-family: 'Gochi Hand', cursive; 
-            margin: 0; 
-            padding: 0; 
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        #controls { 
-            padding: 10px;
-            display: flex; 
-            gap: 8px; 
-            flex-wrap: wrap; 
-            justify-content: center; 
-            align-items: center; 
-            background: #2f3640;
-            z-index: 100;
-        }
-
-        button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; }
+        body { background-color: #2f3640; font-family: 'Gochi Hand', cursive; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #controls { padding: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; background: #2f3640; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .zoom-controls { display: flex; align-items: center; gap: 5px; color: white; font-size: 0.8rem; font-family: sans-serif; }
         #sync-info { color: #bdc3c7; font-size: 0.8rem; margin-top: 2px; font-family: sans-serif; }
-        
-        .card-viewport {
-            flex: 1;
-            overflow: auto; 
-            padding: 20px;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .card-container { 
-            width: 800px; 
-            height: 500px; 
-            background: var(--card-bg); 
-            box-shadow: 15px 15px 0px rgba(0,0,0,0.3); 
-            position: relative; 
-            background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); 
-            background-size: 100% 2.2rem, 100% 100%; 
-            transform-origin: top left;
-        }
-
+        .card-viewport { flex: 1; overflow: auto; padding: 40px; -webkit-overflow-scrolling: touch; }
+        .card-container { width: 800px; height: 500px; background: var(--card-bg); box-shadow: 15px 15px 0px rgba(0,0,0,0.3); position: relative; background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); background-size: 100% 2.2rem, 100% 100%; transform-origin: top left; }
         .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
         .task-group { position: absolute; min-width: 180px; padding: 5px; display: flex; flex-direction: column; user-select: none; }
-        .main-task { font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .main-task { font-size: 1.6rem; font-weight: bold; display: flex; align-items: center; gap: 5px; line-height: 1.2; }
         .handle { cursor: move; color: #ccc; padding: 10px; font-size: 1.4rem; touch-action: none; }
         .sub-task-list { margin-left: 35px; list-style: none; padding: 0; }
         .sub-task { font-size: 1.3rem; margin-top: 4px; cursor: pointer; }
@@ -67,7 +31,6 @@
     </style>
 </head>
 <body>
-
     <div id="controls">
         <select id="cardSelector" onchange="switchCard(this.value)"></select>
         <button onclick="addNewCard()">➕ New</button>
@@ -82,17 +45,14 @@
         <button onclick="clearDone()">🧹 Clear Done</button>
         <button onclick="deleteCurrentCard()" style="color: red;">🗑️</button>
     </div>
-
     <div class="card-viewport">
         <div class="card-container" id="card" ondblclick="createTask(event)">
             <input type="text" class="card-header-title" id="header-title" oninput="saveTitle()" placeholder="Card Name...">
         </div>
     </div>
-
     <script>
         const API_KEY = '$2a$10$hfIQ6cqj8lLTvDD/ZJnTZOCaTFxkBSF0QI8FduF8PBUItxGT/Twxu';
         const BIN_ID = '69b4bd5dc3097a1dd5230e9b';
-
         let cards = JSON.parse(localStorage.getItem('cardStack')) || [{ id: Date.now(), title: "Daily List", tasks: [] }];
         let currentCardId = cards[0].id;
         let lastSyncTime = localStorage.getItem('lastSyncTime') || 'Never';
@@ -102,17 +62,15 @@
             currentZoom = val;
             const card = document.getElementById('card');
             card.style.transform = `scale(${val})`;
-            card.parentElement.style.minHeight = (500 * val + 50) + 'px';
-            card.parentElement.style.minWidth = (800 * val + 50) + 'px';
+            card.parentElement.style.minHeight = (500 * val + 100) + 'px';
+            card.parentElement.style.minWidth = (800 * val + 100) + 'px';
         }
 
         function autoScale() {
             if (window.innerWidth < 800) {
-                const ratio = (window.innerWidth - 40) / 800;
+                const ratio = (window.innerWidth - 80) / 800;
                 applyZoom(Math.max(ratio, 0.45));
-            } else {
-                applyZoom(1);
-            }
+            } else { applyZoom(1); }
         }
 
         function setDirty(isDirty) {
@@ -155,20 +113,11 @@
             selector.innerHTML = cards.map(c => `<option value="${c.id}" ${c.id == currentCardId ? 'selected' : ''}>${c.title}</option>`).join('');
             document.getElementById('header-title').value = currentCard.title;
             Array.from(container.children).forEach(child => { if(child.id !== 'header-title') child.remove(); });
-
             currentCard.tasks.forEach((group, index) => {
                 const div = document.createElement('div');
                 div.className = 'task-group';
                 div.style.left = group.x + 'px'; div.style.top = group.y + 'px';
-                div.innerHTML = `
-                    <div class="main-task">
-                        <span class="handle">⠿</span>
-                        <span class="${group.done ? 'done' : ''}" onclick="toggleTask(${index})" oncontextmenu="editTask(${index}, event)">${group.text}</span>
-                        <button class="btn-add-sub" onclick="addSub(${index})">+</button>
-                        <span class="delete-btn" onclick="deleteGroup(${index})">✕</span>
-                    </div>
-                    <ul class="sub-task-list">${group.subs.map((sub, sIdx) => `<li class="sub-task ${sub.done ? 'done' : ''}" onclick="toggleSub(${index}, ${sIdx}, event)" oncontextmenu="editSub(${index}, ${sIdx}, event)">- ${sub.text}</li>`).join('')}</ul>`;
-
+                div.innerHTML = `<div class="main-task"><span class="handle">⠿</span><span class="${group.done ? 'done' : ''}" onclick="toggleTask(${index})" oncontextmenu="editTask(${index}, event)">${group.text}</span><button class="btn-add-sub" onclick="addSub(${index})">+</button><span class="delete-btn" onclick="deleteGroup(${index})">✕</span></div><ul class="sub-task-list">${group.subs.map((sub, sIdx) => `<li class="sub-task ${sub.done ? 'done' : ''}" onclick="toggleSub(${index}, ${sIdx}, event)" oncontextmenu="editSub(${index}, ${sIdx}, event)">- ${sub.text}</li>`).join('')}</ul>`;
                 const handle = div.querySelector('.handle');
                 const startDrag = (e) => {
                     e.stopPropagation();
@@ -177,34 +126,24 @@
                     const rect = div.getBoundingClientRect();
                     let offsetLeft = clientX - rect.left;
                     let offsetTop = clientY - rect.top;
-
                     const move = (e) => {
                         let moveX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                         let moveY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                         const containerRect = container.getBoundingClientRect();
                         let newX = (moveX - containerRect.left - offsetLeft) / currentZoom;
                         let newY = (moveY - containerRect.top - offsetTop) / currentZoom;
-                        div.style.left = newX + 'px';
-                        div.style.top = newY + 'px';
+                        div.style.left = newX + 'px'; div.style.top = newY + 'px';
                         group.x = newX; group.y = newY;
                     };
-
                     const stop = () => {
-                        document.removeEventListener('mousemove', move);
-                        document.removeEventListener('mouseup', stop);
-                        document.removeEventListener('touchmove', move);
-                        document.removeEventListener('touchend', stop);
+                        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', stop);
+                        document.removeEventListener('touchmove', move); document.removeEventListener('touchend', stop);
                         save();
                     };
-
-                    document.addEventListener('mousemove', move);
-                    document.addEventListener('mouseup', stop);
-                    document.addEventListener('touchmove', move, { passive: false });
-                    document.addEventListener('touchend', stop);
+                    document.addEventListener('mousemove', move); document.addEventListener('mouseup', stop);
+                    document.addEventListener('touchmove', move, { passive: false }); document.addEventListener('touchend', stop);
                 };
-
-                handle.addEventListener('mousedown', startDrag);
-                handle.addEventListener('touchstart', startDrag, { passive: false });
+                handle.addEventListener('mousedown', startDrag); handle.addEventListener('touchstart', startDrag, { passive: false });
                 container.appendChild(div);
             });
             updateSyncText();
@@ -227,7 +166,6 @@
         function deleteCurrentCard() { if(cards.length === 1) return; if(confirm("Delete card?")) { cards = cards.filter(c => c.id != currentCardId); currentCardId = cards[0].id; save(); render(); } }
         function editTask(idx, e) { e.preventDefault(); const t = cards.find(c => c.id == currentCardId).tasks[idx]; const n = prompt("Edit:", t.text); if(n) { t.text = n; save(); render(); } }
         function editSub(tIdx, sIdx, e) { e.preventDefault(); const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx]; const n = prompt("Edit:", s.text); if(n) { s.text = n; save(); render(); } }
-        
         window.onload = () => { autoScale(); render(); };
         window.onresize = autoScale;
     </script>
