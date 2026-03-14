@@ -3,27 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>My Digital Card Box</title>
+    <title>Cloud Index Cards</title>
     <link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
     <style>
         :root { --card-bg: #ffffff; --line-blue: #a2c8f2; --margin-red: #ffadad; }
         body { background-color: #2f3640; font-family: 'Gochi Hand', cursive; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; touch-action: none; }
-        
         #controls { margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
         button, select { padding: 8px 12px; font-family: inherit; font-size: 1rem; cursor: pointer; border-radius: 5px; border: none; background: #ecf0f1; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        
-        .card-container {
-            width: 95vw; max-width: 800px; height: 75vh; background: var(--card-bg);
-            box-shadow: 15px 15px 0px rgba(0,0,0,0.3); position: relative; overflow: hidden;
-            background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px);
-            background-size: 100% 2.2rem, 100% 100%;
-        }
-
-        .card-header-title {
-            position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d;
-            border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%;
-        }
-
+        .card-container { width: 95vw; max-width: 800px; height: 75vh; background: var(--card-bg); box-shadow: 15px 15px 0px rgba(0,0,0,0.3); position: relative; overflow: hidden; background-image: linear-gradient(var(--line-blue) 1px, transparent 1px), linear-gradient(90deg, transparent 79px, var(--margin-red) 1px, transparent 80px); background-size: 100% 2.2rem, 100% 100%; }
+        .card-header-title { position: absolute; top: 5px; right: 20px; font-size: 1.5rem; color: #7f8c8d; border: none; background: transparent; text-align: right; font-family: inherit; outline: none; width: 60%; }
         .task-group { position: absolute; cursor: move; min-width: 160px; padding: 5px; }
         .main-task { font-size: 1.5rem; font-weight: bold; display: flex; align-items: center; gap: 8px; }
         .sub-task-list { margin-left: 25px; list-style: none; padding: 0; }
@@ -32,17 +20,18 @@
         .btn-add-sub { font-size: 0.8rem; width: 18px; height: 18px; border: 1px solid #ccc; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .delete-btn { color: #e74c3c; font-size: 0.8rem; margin-left: 5px; opacity: 0; }
         .task-group:hover .delete-btn { opacity: 1; }
+        .sync-btn { background: #2ecc71 !important; color: white; font-weight: bold; }
+        .syncing { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>
 
     <div id="controls">
         <select id="cardSelector" onchange="switchCard(this.value)"></select>
-        <button onclick="addNewCard()">➕ New Card</button>
+        <button onclick="addNewCard()">➕ New</button>
+        <button class="sync-btn" id="syncBtn" onclick="syncCloud()">☁️ Sync Cloud</button>
         <button onclick="clearDone()">🧹 Clear Done</button>
-        <button onclick="exportData()">💾 Export</button>
-        <button onclick="importData()">📥 Import</button>
-        <button onclick="deleteCurrentCard()" style="color: red;">🗑️ Delete Card</button>
+        <button onclick="deleteCurrentCard()" style="color: red;">🗑️</button>
     </div>
 
     <div class="card-container" id="card" ondblclick="createTask(event)">
@@ -50,39 +39,73 @@
     </div>
 
     <script>
-        let cards = JSON.parse(localStorage.getItem('cardStack')) || [
-            { id: Date.now(), title: "Daily List", tasks: [] }
-        ];
+        const API_KEY = '$2a$10$hfIQ6cqj8lLTvDD/ZJnTZOCaTFxkBSF0QI8FduF8PBUItxGT/Twxu';
+        const BIN_ID = '69b4bd5dc3097a1dd5230e9b';
+
+        let cards = JSON.parse(localStorage.getItem('cardStack')) || [{ id: Date.now(), title: "Daily List", tasks: [] }];
         let currentCardId = cards[0].id;
 
         function save() { localStorage.setItem('cardStack', JSON.stringify(cards)); }
 
+        async function syncCloud() {
+            const btn = document.getElementById('syncBtn');
+            btn.innerText = "⏳ Syncing...";
+            btn.classList.add('syncing');
+
+            try {
+                // 1. Pull Latest First (to avoid overwriting work done on other devices)
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': API_KEY }
+                });
+                const remoteData = await response.json();
+                
+                // If cloud has data, we merge or prefer cloud. 
+                // For simplicity: If cloud is NOT empty, we take cloud. 
+                // If cloud IS empty, we push our local.
+                if (remoteData.record && remoteData.record.cards && remoteData.record.cards.length > 0) {
+                   if(confirm("Cloud has data. Pull from Cloud? (Cancel to push your current screen to Cloud)")) {
+                        cards = remoteData.record.cards;
+                        save(); render();
+                   } else {
+                        await pushToCloud();
+                   }
+                } else {
+                    await pushToCloud();
+                }
+                alert("Cloud Sync Complete!");
+            } catch (err) {
+                alert("Sync failed. Check console.");
+                console.error(err);
+            } finally {
+                btn.innerText = "☁️ Sync Cloud";
+                btn.classList.remove('syncing');
+            }
+        }
+
+        async function pushToCloud() {
+            await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+                body: JSON.stringify({ cards: cards })
+            });
+        }
+
         function render() {
             const container = document.getElementById('card');
             const selector = document.getElementById('cardSelector');
-            const currentCard = cards.find(c => c.id == currentCardId);
+            const currentCard = cards.find(c => c.id == currentCardId) || cards[0];
+            currentCardId = currentCard.id;
             
-            // Update Selector
             selector.innerHTML = cards.map(c => `<option value="${c.id}" ${c.id == currentCardId ? 'selected' : ''}>${c.title}</option>`).join('');
             document.getElementById('header-title').value = currentCard.title;
 
-            // Clear Tasks
             Array.from(container.children).forEach(child => { if(child.id !== 'header-title') child.remove(); });
 
             currentCard.tasks.forEach((group, index) => {
                 const div = document.createElement('div');
                 div.className = 'task-group';
                 div.style.left = group.x + 'px'; div.style.top = group.y + 'px';
-                div.innerHTML = `
-                    <div class="main-task">
-                        <span class="${group.done ? 'done' : ''}" onclick="toggleTask(${index})" oncontextmenu="editTask(${index}, event)">${group.text}</span>
-                        <button class="btn-add-sub" onclick="addSub(${index})">+</button>
-                        <span class="delete-btn" onclick="deleteGroup(${index})">✕</span>
-                    </div>
-                    <ul class="sub-task-list">${group.subs.map((sub, sIdx) => `
-                        <li class="sub-task ${sub.done ? 'done' : ''}" onclick="toggleSub(${index}, ${sIdx}, event)" oncontextmenu="editSub(${index}, ${sIdx}, event)">- ${sub.text}</li>
-                    `).join('')}</ul>`;
-
+                div.innerHTML = `<div class="main-task"><span class="${group.done ? 'done' : ''}" onclick="toggleTask(${index})" oncontextmenu="editTask(${index}, event)">${group.text}</span><button class="btn-add-sub" onclick="addSub(${index})">+</button><span class="delete-btn" onclick="deleteGroup(${index})">✕</span></div><ul class="sub-task-list">${group.subs.map((sub, sIdx) => `<li class="sub-task ${sub.done ? 'done' : ''}" onclick="toggleSub(${index}, ${sIdx}, event)" oncontextmenu="editSub(${index}, ${sIdx}, event)">- ${sub.text}</li>`).join('')}</ul>`;
                 div.onmousedown = (e) => {
                     if(e.target.tagName === 'BUTTON' || e.target.classList.contains('delete-btn')) return;
                     let startX = e.clientX - div.offsetLeft; let startY = e.clientY - div.offsetTop;
@@ -96,97 +119,18 @@
             });
         }
 
-        function addNewCard() {
-            const name = prompt("Card Name:");
-            if(!name) return;
-            const newId = Date.now();
-            cards.push({ id: newId, title: name, tasks: [] });
-            currentCardId = newId;
-            save(); render();
-        }
-
+        function addNewCard() { const name = prompt("Card Name:"); if(!name) return; const newId = Date.now(); cards.push({ id: newId, title: name, tasks: [] }); currentCardId = newId; save(); render(); }
         function switchCard(id) { currentCardId = id; render(); }
-
-        function saveTitle() {
-            const currentCard = cards.find(c => c.id == currentCardId);
-            currentCard.title = document.getElementById('header-title').value;
-            save();
-            const selector = document.getElementById('cardSelector');
-            selector.options[selector.selectedIndex].text = currentCard.title;
-        }
-
-        function createTask(e) {
-            if(e.target !== document.getElementById('card')) return;
-            const text = prompt("Task Name:");
-            if(!text) return;
-            cards.find(c => c.id == currentCardId).tasks.push({ text, done: false, x: e.offsetX, y: e.offsetY, subs: [] });
-            save(); render();
-        }
-
-        function addSub(index) {
-            const text = prompt("Sub-task:");
-            if(!text) return;
-            cards.find(c => c.id == currentCardId).tasks[index].subs.push({ text, done: false });
-            save(); render();
-        }
-
-        function toggleTask(idx) { 
-            const t = cards.find(c => c.id == currentCardId).tasks[idx];
-            t.done = !t.done; save(); render(); 
-        }
-
-        function toggleSub(tIdx, sIdx, e) {
-            e.stopPropagation();
-            const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx];
-            s.done = !s.done; save(); render();
-        }
-
-        function clearDone() {
-            const c = cards.find(c => c.id == currentCardId);
-            c.tasks = c.tasks.filter(g => { g.subs = g.subs.filter(s => !s.done); return !g.done; });
-            save(); render();
-        }
-
-        function deleteCurrentCard() {
-            if(cards.length === 1) return alert("You need at least one card!");
-            if(confirm("Delete this entire card?")) {
-                cards = cards.filter(c => c.id != currentCardId);
-                currentCardId = cards[0].id;
-                save(); render();
-            }
-        }
-
-        function exportData() {
-            const dataStr = JSON.stringify(cards);
-            navigator.clipboard.writeText(dataStr);
-            alert("All cards copied to clipboard! You can now paste this into 'Import' on another device.");
-        }
-
-        function importData() {
-            const dataStr = prompt("Paste your exported data here:");
-            if(dataStr) {
-                try {
-                    cards = JSON.parse(dataStr);
-                    currentCardId = cards[0].id;
-                    save(); render();
-                } catch(e) { alert("Invalid data!"); }
-            }
-        }
-
-        function editTask(idx, e) {
-            e.preventDefault();
-            const t = cards.find(c => c.id == currentCardId).tasks[idx];
-            const n = prompt("Edit:", t.text);
-            if(n) { t.text = n; save(); render(); }
-        }
-
-        function editSub(tIdx, sIdx, e) {
-            e.preventDefault();
-            const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx];
-            const n = prompt("Edit:", s.text);
-            if(n) { s.text = n; save(); render(); }
-        }
-
+        function saveTitle() { const c = cards.find(c => c.id == currentCardId); c.title = document.getElementById('header-title').value; save(); render(); }
+        function createTask(e) { if(e.target !== document.getElementById('card')) return; const text = prompt("Task Name:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks.push({ text, done: false, x: e.offsetX, y: e.offsetY, subs: [] }); save(); render(); }
+        function addSub(index) { const text = prompt("Sub-task:"); if(!text) return; cards.find(c => c.id == currentCardId).tasks[index].subs.push({ text, done: false }); save(); render(); }
+        function toggleTask(idx) { const t = cards.find(c => c.id == currentCardId).tasks[idx]; t.done = !t.done; save(); render(); }
+        function toggleSub(tIdx, sIdx, e) { e.stopPropagation(); const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx]; s.done = !s.done; save(); render(); }
+        function deleteGroup(index) { if(confirm("Delete?")) { cards.find(c => c.id == currentCardId).tasks.splice(index, 1); save(); render(); } }
+        function deleteCurrentCard() { if(cards.length === 1) return; if(confirm("Delete card?")) { cards = cards.filter(c => c.id != currentCardId); currentCardId = cards[0].id; save(); render(); } }
+        function editTask(idx, e) { e.preventDefault(); const t = cards.find(c => c.id == currentCardId).tasks[idx]; const n = prompt("Edit:", t.text); if(n) { t.text = n; save(); render(); } }
+        function editSub(tIdx, sIdx, e) { e.preventDefault(); const s = cards.find(c => c.id == currentCardId).tasks[tIdx].subs[sIdx]; const n = prompt("Edit:", s.text); if(n) { s.text = n; save(); render(); } }
+        
         render();
     </script>
 </body>
